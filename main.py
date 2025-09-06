@@ -450,9 +450,18 @@ def webhook():
                     days_str = combine_days(days) if days else ""
                 else:
                     days_str = str(days)
+
+                def format_time(t):
+                    try:
+                        return datetime.strptime(t, "%H:%M").strftime("%I:%M %p")
+                    except Exception:
+                        return t
+
+                start_fmt = format_time(start) if start else ""
+                end_fmt = format_time(end) if end else ""
                 timings_str = (
-                    f"{days_str}: {start} - {end}"
-                    if days_str and start and end
+                    f"{days_str}: {start_fmt} - {end_fmt}"
+                    if days_str and start_fmt and end_fmt
                     else "Not available"
                 )
                 details = f"""👨‍⚕️ **Dr. {data['name']}**\n🩺 Specialization: {data.get('specialization', '')}\n🎓 {data.get('education', '')}\n🎖 Designation: {data.get('designation', '')}\n🏢 City: {data.get('city', '')}\n📝 Description: {description}\n🔗 [Profile]({page_url})\n🕒 Timings: {timings_str}"""
@@ -521,6 +530,11 @@ def webhook():
         available_days = doctor_data.get("days", [])
         start_time = doctor_data.get("start", "")
         end_time = doctor_data.get("end", "")
+        # Format available days using combine_days
+        if isinstance(available_days, list):
+            available_days_str = combine_days(available_days) if available_days else ""
+        else:
+            available_days_str = str(available_days)
         if selected_weekday not in available_days:
             # Clear date and time parameters and prompt for new ones
             return jsonify(
@@ -538,7 +552,7 @@ def webhook():
                             {
                                 "text": {
                                     "text": [
-                                        f"❌ Dr. {doctor_name} is not available on {appointment_date} ({selected_weekday}). Available days: {', '.join(available_days)}. Please select another date."
+                                        f"❌ Dr. {doctor_name} is not available on {appointment_date} ({selected_weekday}). Available days: {available_days_str}. Please select another date."
                                     ]
                                 }
                             }
@@ -630,9 +644,18 @@ def webhook():
                     days_str = combine_days(days) if days else ""
                 else:
                     days_str = str(days)
+
+                def format_time(t):
+                    try:
+                        return datetime.strptime(t, "%H:%M").strftime("%I:%M %p")
+                    except Exception:
+                        return t
+
+                start_fmt = format_time(start) if start else ""
+                end_fmt = format_time(end) if end else ""
                 timings_str = (
-                    f"{days_str}: {start} - {end}"
-                    if days_str and start and end
+                    f"{days_str}: {start_fmt} - {end_fmt}"
+                    if days_str and start_fmt and end_fmt
                     else "Not available"
                 )
                 detail = f"""👨‍⚕️ **Dr. {data['name']}**\n🩺 Specialization: {data.get('specialization', '')}\n🎓 {data.get('education', '')}\n🎖 Designation: {data.get('designation', '')}\n🏢 City: {city}\n🕒 Timings: {timings_str}"""
