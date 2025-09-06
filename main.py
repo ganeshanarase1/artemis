@@ -6,10 +6,6 @@ from google.cloud.firestore_v1 import FieldFilter
 import re
 import os
 from datetime import datetime
-from datetime import datetime
-
-
-port = int(os.environ.get("PORT", 8080))
 
 app = Flask(__name__)
 firebase_admin.initialize_app()
