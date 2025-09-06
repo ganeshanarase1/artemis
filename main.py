@@ -11,7 +11,6 @@ app = Flask(__name__)
 firebase_admin.initialize_app()
 db = firestore.client()
 
-
 def combine_days(days):
     day_order = [
         "Monday",
