@@ -530,12 +530,50 @@ def webhook():
         available_days = doctor_data.get("days", [])
         start_time = doctor_data.get("start", "")
         end_time = doctor_data.get("end", "")
+
         # Format available days using combine_days
+        def is_day_available(selected_weekday, available_days):
+            # Map full weekday to abbreviation
+            day_map = {
+                "Monday": "Mon",
+                "Tuesday": "Tue",
+                "Wednesday": "Wed",
+                "Thursday": "Thu",
+                "Friday": "Fri",
+                "Saturday": "Sat",
+                "Sunday": "Sun",
+            }
+            selected_abbr = day_map.get(selected_weekday, selected_weekday)
+            if isinstance(available_days, list):
+                # List of abbreviations
+                return selected_abbr in available_days
+            elif isinstance(available_days, str):
+                # Range string, e.g., "Mon-Sat"
+                days_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                if "-" in available_days:
+                    start_day, end_day = available_days.split("-")
+                    try:
+                        start_idx = days_order.index(start_day)
+                        end_idx = days_order.index(end_day)
+                        # Handle wrap-around (e.g., Sat-Mon)
+                        if start_idx <= end_idx:
+                            valid_days = days_order[start_idx : end_idx + 1]
+                        else:
+                            valid_days = (
+                                days_order[start_idx:] + days_order[: end_idx + 1]
+                            )
+                        return selected_abbr in valid_days
+                    except ValueError:
+                        return False
+                else:
+                    return selected_abbr == available_days
+            return False
+
         if isinstance(available_days, list):
             available_days_str = combine_days(available_days) if available_days else ""
         else:
             available_days_str = str(available_days)
-        if selected_weekday not in available_days:
+        if not is_day_available(selected_weekday, available_days):
             # Clear date and time parameters and prompt for new ones
             return jsonify(
                 {
