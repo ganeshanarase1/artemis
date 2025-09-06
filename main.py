@@ -77,7 +77,10 @@ def webhook():
             "Age": params.get("patientage", ""),
             "Test": params.get("diagnostics", ""),
         }
-        db.collection("diagnostics").document(session).set(data)
+        try:
+            db.collection("diagnostics").document(session).set(data)
+        except Exception as e:
+            print("🔥 Firestore write error:", e)
         # Return a confirmation message after booking
         diagnostic_name = params.get("diagnostics", "diagnostic")
         return jsonify(
