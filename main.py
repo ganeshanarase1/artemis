@@ -394,11 +394,8 @@ def webhook():
                 doctor_id = data.get("DoctorId", "")
                 image_url = data.get("image_url", "https://via.placeholder.com/150")
                 page_url = data.get("page_url", "")
-                tags = data.get("Tags", [])
                 name = data.get("name", "Doctor")
                 chips_options = [{"text": f"Dr. {name}"}]
-                if tags:
-                    chips_options += [{"text": tag} for tag in tags if tag]
                 items.append(
                     [
                         {
@@ -444,19 +441,21 @@ def webhook():
             for doc in docs:
                 data = doc.to_dict()
                 description = data.get("description", "")
-                tags = data.get("Tags", [])
                 page_url = data.get("page_url", "")
                 image_url = data.get("image_url", "https://via.placeholder.com/150")
                 days = data.get("days", [])
                 start = data.get("start", "")
                 end = data.get("end", "")
+                if isinstance(days, list):
+                    days_str = combine_days(days) if days else ""
+                else:
+                    days_str = str(days)
                 timings_str = (
-                    f"{', '.join(days)}: {start} - {end}"
-                    if days and start and end
+                    f"{days_str}: {start} - {end}"
+                    if days_str and start and end
                     else "Not available"
                 )
-                tags_str = ", ".join(tags) if tags else "None"
-                details = f"""👨‍⚕️ **Dr. {data['name']}**\n🩺 Specialization: {data.get('specialization', '')}\n🎓 {data.get('education', '')}\n🎖 Designation: {data.get('designation', '')}\n🏢 City: {data.get('city', '')}\n📝 Description: {description}\n🏷️ Tags: {tags_str}\n🔗 [Profile]({page_url})\n🕒 Timings: {timings_str}"""
+                details = f"""👨‍⚕️ **Dr. {data['name']}**\n🩺 Specialization: {data.get('specialization', '')}\n🎓 {data.get('education', '')}\n🎖 Designation: {data.get('designation', '')}\n🏢 City: {data.get('city', '')}\n📝 Description: {description}\n🔗 [Profile]({page_url})\n🕒 Timings: {timings_str}"""
                 return jsonify(
                     {
                         "fulfillment_response": {
@@ -627,9 +626,13 @@ def webhook():
                 days = data.get("days", [])
                 start = data.get("start", "")
                 end = data.get("end", "")
+                if isinstance(days, list):
+                    days_str = combine_days(days) if days else ""
+                else:
+                    days_str = str(days)
                 timings_str = (
-                    f"{', '.join(days)}: {start} - {end}"
-                    if days and start and end
+                    f"{days_str}: {start} - {end}"
+                    if days_str and start and end
                     else "Not available"
                 )
                 detail = f"""👨‍⚕️ **Dr. {data['name']}**\n🩺 Specialization: {data.get('specialization', '')}\n🎓 {data.get('education', '')}\n🎖 Designation: {data.get('designation', '')}\n🏢 City: {city}\n🕒 Timings: {timings_str}"""
