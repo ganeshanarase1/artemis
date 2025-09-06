@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 import firebase_admin
 from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
-from google.cloud.firestore_v1 import FieldFilter
 import re
 import os
 from datetime import datetime
