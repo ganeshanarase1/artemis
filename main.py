@@ -357,8 +357,10 @@ def webhook():
             for doc in query.stream():
                 data = doc.to_dict()
                 specializations.add(data.get("specialization", ""))
-
-            chips = {"type": "chips", "options": [{"text": s} for s in specializations]}
+            chips = {
+                "type": "chips",
+                "options": [{"text": s} for s in specializations if s],
+            }
             return jsonify(
                 {
                     "fulfillment_response": {
@@ -369,7 +371,8 @@ def webhook():
                     }
                 }
             )
-        except:
+        except Exception as e:
+            print("Error fetching specializations:", e)
             return fallback("Error fetching specializations.")
 
     elif tag == "get_doctors_by_city_and_spec":
@@ -388,18 +391,30 @@ def webhook():
             items = []
             for doc in query.stream():
                 data = doc.to_dict()
+                doctor_id = data.get("DoctorId", "")
+                image_url = data.get("image_url", "https://via.placeholder.com/150")
+                page_url = data.get("page_url", "")
+                tags = data.get("Tags", [])
+                name = data.get("name", "Doctor")
+                chips_options = [{"text": f"Dr. {name}"}]
+                if tags:
+                    chips_options += [{"text": tag} for tag in tags if tag]
                 items.append(
                     [
                         {
                             "type": "image",
-                            "rawUrl": data.get(
-                                "image_url", "https://via.placeholder.com/150"
-                            ),
-                            "accessibilityText": data.get("name", "Doctor"),
+                            "rawUrl": image_url,
+                            "accessibilityText": name,
                         },
                         {
                             "type": "chips",
-                            "options": [{"text": f"Dr. {data.get('name', 'Doctor')}"}],
+                            "options": chips_options,
+                        },
+                        {
+                            "type": "button",
+                            "icon": {"type": "link"},
+                            "text": "View Profile",
+                            "link": page_url,
                         },
                     ]
                 )
@@ -428,24 +443,20 @@ def webhook():
             )
             for doc in docs:
                 data = doc.to_dict()
-                schedule = data.get("weekly_schedule", {})
-                time_map = {}
-                for day, times in schedule.items():
-                    key = f"{times.get('start', '')}–{times.get('end', '')}"
-                    time_map.setdefault(key, []).append(day)
-                    timing_lines = []
-                for time, days in time_map.items():
-                    day_str = combine_days(days)
-                    timing_lines.append(f"{day_str}: {time.replace('–', ' - ')}")
+                description = data.get("description", "")
+                tags = data.get("Tags", [])
+                page_url = data.get("page_url", "")
+                image_url = data.get("image_url", "https://via.placeholder.com/150")
+                days = data.get("days", [])
+                start = data.get("start", "")
+                end = data.get("end", "")
                 timings_str = (
-                    "\n" + "\n".join(timing_lines) if timing_lines else "Not available"
+                    f"{', '.join(days)}: {start} - {end}"
+                    if days and start and end
+                    else "Not available"
                 )
-
-                details = f"""👨‍⚕️ **Dr. {data['name']}** 
-🩺 Specialization: {data['specialization']}
-🎓 {data['education']}
-🎖 Designation: {data['designation']}
-🕒 Timings:{timings_str}"""
+                tags_str = ", ".join(tags) if tags else "None"
+                details = f"""👨‍⚕️ **Dr. {data['name']}**\n🩺 Specialization: {data.get('specialization', '')}\n🎓 {data.get('education', '')}\n🎖 Designation: {data.get('designation', '')}\n🏢 City: {data.get('city', '')}\n📝 Description: {description}\n🏷️ Tags: {tags_str}\n🔗 [Profile]({page_url})\n🕒 Timings: {timings_str}"""
                 return jsonify(
                     {
                         "fulfillment_response": {
@@ -507,8 +518,11 @@ def webhook():
         except Exception as e:
             return fallback("❌ Invalid date format.")
 
-        weekly_schedule = doctor_data.get("weekly_schedule", {})
-        if selected_weekday not in weekly_schedule:
+        # Use Firestore fields: days (list), start, end
+        available_days = doctor_data.get("days", [])
+        start_time = doctor_data.get("start", "")
+        end_time = doctor_data.get("end", "")
+        if selected_weekday not in available_days:
             # Clear date and time parameters and prompt for new ones
             return jsonify(
                 {
@@ -525,13 +539,13 @@ def webhook():
                             {
                                 "text": {
                                     "text": [
-                                        f"❌ Dr. {doctor_name} is not available on {appointment_date} ({selected_weekday}). Please select another date."
+                                        f"❌ Dr. {doctor_name} is not available on {appointment_date} ({selected_weekday}). Available days: {', '.join(available_days)}. Please select another date."
                                     ]
                                 }
                             }
                         ]
                     },
-                    "targetPage": "7-bookcon_flowend",  # Optional: set this to your booking page if you want to force the page
+                    "targetPage": "7-bookcon_flowend",
                 }
             )
 
@@ -610,14 +624,15 @@ def webhook():
             for doc in docs:
                 data = doc.to_dict()
                 city = data.get("city", "Unknown")
-                timings_str = ""  # You may want to build this from weekly_schedule
-                detail = f"""👨‍⚕️ **Dr. {data['name']}** 
-🩺 Specialization: {data['specialization']}
-🎓 {data['education']}
-🎖 Designation: {data['designation']}
-🏢 City: {city}
-🕒 Timings:{timings_str}"""
-                # Optionally, set city in session parameters for later use
+                days = data.get("days", [])
+                start = data.get("start", "")
+                end = data.get("end", "")
+                timings_str = (
+                    f"{', '.join(days)}: {start} - {end}"
+                    if days and start and end
+                    else "Not available"
+                )
+                detail = f"""👨‍⚕️ **Dr. {data['name']}**\n🩺 Specialization: {data.get('specialization', '')}\n🎓 {data.get('education', '')}\n🎖 Designation: {data.get('designation', '')}\n🏢 City: {city}\n🕒 Timings: {timings_str}"""
                 return jsonify(
                     {
                         "sessionInfo": {
