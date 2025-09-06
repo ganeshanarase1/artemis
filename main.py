@@ -418,44 +418,25 @@ def webhook():
             return fallback("Something went wrong while fetching doctors.")
 
     elif tag == "get_doctor_details_by_name":
-        doc_name = params.get("doctorname", "").replace("Dr. ", "").strip()
-        try:
-            docs = (
-                db.collection("doctors")
-                .where(filter=FieldFilter("name", "==", doc_name))
-                .stream()
-            )
-            for doc in docs:
-                data = doc.to_dict()
-                schedule = data.get("weekly_schedule", {})
-                time_map = {}
-                for day, times in schedule.items():
-                    key = f"{times.get('start', '')}–{times.get('end', '')}"
-                    time_map.setdefault(key, []).append(day)
-                    timing_lines = []
-                for time, days in time_map.items():
-                    day_str = combine_days(days)
-                    timing_lines.append(f"{day_str}: {time.replace('–', ' - ')}")
-                timings_str = (
-                    "\n" + "\n".join(timing_lines) if timing_lines else "Not available"
-                )
-
-                details = f"""👨‍⚕️ **Dr. {data['name']}** 
-🩺 Specialization: {data['specialization']}
-🎓 {data['education']}
-🎖 Designation: {data['designation']}
-🕒 Timings:{timings_str}"""
-                return jsonify(
-                    {
-                        "fulfillment_response": {
-                            "messages": [{"text": {"text": [details]}}]
-                        }
-                    }
-                )
-            return fallback("")
-        except Exception as e:
-            print("Fetch error:", e)
-            return fallback("Error fetching doctor details.")
+    doc_name = params.get("doctorname", "").replace("Dr. ", "").strip()
+    print("Querying Firestore for doctor name:", doc_name)
+    try:
+        docs = (
+            db.collection("doctors")
+            .where(filter=FieldFilter("name", "==", doc_name))
+            .stream()
+        )
+        found = False
+        for doc in docs:
+            found = True
+            data = doc.to_dict()
+            # ...existing code...
+        if not found:
+            print("No doctor found for name:", doc_name)
+        return fallback("")
+    except Exception as e:
+        print("Fetch error:", e)
+        return fallback("Error fetching doctor details.")
 
     elif tag == "book_doctor_appointment":
         date_obj = params.get("consultationdate", {})
