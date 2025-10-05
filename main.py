@@ -5,23 +5,10 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 import re
 import os
 from datetime import datetime
-import requests
 
 app = Flask(__name__)
 firebase_admin.initialize_app()
 db = firestore.client()
-
-# ---- Hardcoded credentials (WARNING: embedding secrets in code is insecure!)
-# These values were provided and are being hardcoded per user request.
-# For production it's strongly recommended to use environment variables or a secret manager.
-WA_APP_ID = "24872897042307028"
-WA_APP_SECRET = "95127a73367eb09362f5decb4cd3a9e1"
-WA_WABA_ID = "32483069347950472"  # WhatsApp Business Account ID
-WA_ACCESS_TOKEN = "EAFhdxKC919QBPi99Lr6iYcgZAVJxIVlZAZBlZAbLFKKvcXqNTxEUfAdIlZB4aB4ZBqrKR0icQ8MGIS9oxtJcXUoMKCTl1oEkb9ANIB9WLXN7hd70veDuzCKFyfhNDIas3GXZBZBwSNFNlThAZBs4UczBVBp0y0YlTL26RexRQClAKcGwxFXfdcidMhKGaliT773p9kHwZAqIQkjku3guokp4HHqIXmw01F7XgTLGOWKz352AZDZD"
-WA_PHONE_NUMBER_ID = "827259287134254"
-WA_PHONE_NUMBER = "+1 555 172 4854"
-# A verification token used when Meta verifies your webhook. Change if needed.
-WA_VERIFY_TOKEN = "ganesh123"
 
 
 def combine_days(days):
@@ -48,121 +35,6 @@ def combine_days(days):
     for g in groups:
         result.append(f"{g[0]}–{g[-1]}" if len(g) > 1 else g[0])
     return ", ".join(result)
-
-
-def send_whatsapp_cloud(to_phone: str, message: str) -> bool:
-    """Send a WhatsApp message via Meta's WhatsApp Cloud API.
-
-    Requires environment variables:
-      - WA_ACCESS_TOKEN
-      - WA_PHONE_NUMBER_ID
-
-    This helper is optional: if env vars are missing, it logs and returns False.
-    """
-    # Prefer environment variables if set, otherwise use hardcoded values
-    access_token = os.environ.get("WA_ACCESS_TOKEN") or WA_ACCESS_TOKEN
-    phone_number_id = os.environ.get("WA_PHONE_NUMBER_ID") or WA_PHONE_NUMBER_ID
-    if not access_token or not phone_number_id:
-        print(
-            "WhatsApp Cloud API not configured (no token or phone number id). Skipping send."
-        )
-        return False
-
-    if not to_phone:
-        print("No recipient phone provided for WhatsApp send.")
-        return False
-
-    # normalize phone number: Graph API expects numbers in international format without '+'
-    normalized = re.sub(r"[^0-9]", "", to_phone)
-    if normalized.startswith("0"):
-        # likely local; still attempt but warn
-        print("Warning: phone number may be local format (starts with 0):", to_phone)
-
-    url = f"https://graph.facebook.com/v17.0/{phone_number_id}/messages"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": normalized,
-        "type": "text",
-        "text": {"body": message},
-    }
-    try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=10)
-        if resp.status_code >= 200 and resp.status_code < 300:
-            print("WhatsApp message sent to", normalized)
-            return True
-        else:
-            print("WhatsApp send failed:", resp.status_code, resp.text)
-            return False
-    except Exception as e:
-        print("Exception while sending WhatsApp message:", e)
-        return False
-
-
-@app.route("/whatsapp_webhook", methods=["GET", "POST"])
-def whatsapp_webhook():
-    """Webhook endpoint for WhatsApp Business Cloud API (verification + messages).
-
-    GET: verification - responds to hub.challenge when configured with WA_VERIFY_TOKEN
-    POST: receives messages and stores them in Firestore collection `whatsapp_incoming`.
-
-    Note: This endpoint intentionally keeps logic minimal. For production, route
-    messages into your Dialogflow agent or business logic as needed.
-    """
-    if request.method == "GET":
-        # Verification
-        verify_token = os.environ.get("WA_VERIFY_TOKEN") or WA_VERIFY_TOKEN
-        mode = request.args.get("hub.mode")
-        token = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
-        if mode and token:
-            if mode == "subscribe" and token == verify_token:
-                return challenge or "", 200
-            else:
-                return "Verification token mismatch", 403
-        return "Bad Request", 400
-
-    # POST - handle incoming messages
-    data = request.get_json()
-    print("WhatsApp webhook event:", data)
-    try:
-        # Messenger webhook uses entry -> changes -> value -> messages
-        entries = data.get("entry", []) if isinstance(data, dict) else []
-        for entry in entries:
-            changes = entry.get("changes", [])
-            for change in changes:
-                value = change.get("value", {})
-                messages = value.get("messages", [])
-                for msg in messages:
-                    from_phone = msg.get("from")
-                    text = ""
-                    if msg.get("text"):
-                        text = msg["text"].get("body", "")
-                    # Persist incoming message for audit or processing
-                    db.collection("whatsapp_incoming").add(
-                        {
-                            "from": from_phone,
-                            "text": text,
-                            "raw": msg,
-                            "received_at": datetime.utcnow(),
-                        }
-                    )
-
-                    # Simple acknowledgement reply. In production, you can forward
-                    # `text` to Dialogflow/your bot and send the agent's response.
-                    ack = os.environ.get(
-                        "WHATSAPP_ACK_MESSAGE",
-                        "Thanks! We received your message. Our team will contact you shortly.",
-                    )
-                    send_whatsapp_cloud(from_phone, ack)
-
-        return "EVENT_RECEIVED", 200
-    except Exception as e:
-        print("Error processing WhatsApp webhook:", e)
-        return "", 500
 
 
 @app.route("/webhook", methods=["POST"])
